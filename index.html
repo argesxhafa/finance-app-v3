@@ -20,6 +20,14 @@
     NOTE: localStorage is per-browser, per-device - use the same browser you
     entered the data in.
 
+  BACKUP / RESTORE
+    "Export data" (bottom of the app) saves everything - both people's
+    shifts, budgets, debts, goals, and pay-rate settings - as a JSON file
+    named finance-backup-YYYY-MM-DD.json (on iPhone it opens the share
+    sheet; save to Files or email it to yourself). "Import data" restores
+    a backup file, replacing current data after a confirmation. Importing
+    a backup onto a fresh install recreates everything exactly.
+
   CHANGE THE PASSWORD / RATE DEFAULTS
     Scroll down to the block marked  "===== SETTINGS - EDIT HERE ====="
     at the very top of the <script> section:
@@ -286,7 +294,7 @@ details.sched .scroll{max-height:290px;overflow-y:auto;border:1px solid var(--li
 
 /* ---------- footer ---------- */
 #foot{
-  display:flex;justify-content:center;gap:10px;padding-top:14px;
+  display:flex;flex-wrap:wrap;justify-content:center;gap:10px;padding-top:14px;
   padding-bottom:calc(26px + env(safe-area-inset-bottom));
 }
 </style>
@@ -318,8 +326,11 @@ details.sched .scroll{max-height:290px;overflow-y:auto;border:1px solid var(--li
   </div>
   <main class="wrap" id="content"></main>
   <footer class="wrap" id="foot">
+    <button class="btn ghost sm" data-act="export">Export data</button>
+    <button class="btn ghost sm" data-act="import">Import data</button>
     <button class="btn ghost sm" data-act="sample">Load sample data</button>
     <button class="btn ghost sm danger" data-act="clear">Clear data</button>
+    <input type="file" id="importFile" accept=".json,application/json" hidden>
   </footer>
 </div>
 
@@ -357,30 +368,33 @@ function defaultState(){
     ui:{ main:'arges', sub:{ arges:'budget', hannah:'budget' } }
   };
 }
+function normalizeState(p){
+  const st = defaultState();
+  if(!p || typeof p!=='object') return st;
+  for(const k of PEOPLE){
+    const src = p.people && p.people[k];
+    if(!src) continue;
+    const t = st.people[k];
+    if(src.budget){
+      t.budget.income   = Array.isArray(src.budget.income)   ? src.budget.income   : [];
+      t.budget.expenses = Array.isArray(src.budget.expenses) ? src.budget.expenses : [];
+    }
+    if(Array.isArray(src.shifts)) t.shifts = src.shifts;
+    if(src.rates && typeof src.rates==='object') Object.assign(t.rates, src.rates);
+    if(Array.isArray(src.debts)) t.debts = src.debts;
+    if(Array.isArray(src.goals)) t.goals = src.goals;
+  }
+  if(p.ui){
+    if(PEOPLE.concat('combined').includes(p.ui.main)) st.ui.main = p.ui.main;
+    if(p.ui.sub) Object.assign(st.ui.sub, p.ui.sub);
+  }
+  return st;
+}
 function loadState(){
   try{
     const raw = localStorage.getItem(LS_KEY);
     if(!raw) return defaultState();
-    const p = JSON.parse(raw);
-    const st = defaultState();
-    for(const k of PEOPLE){
-      const src = p.people && p.people[k];
-      if(!src) continue;
-      const t = st.people[k];
-      if(src.budget){
-        t.budget.income   = Array.isArray(src.budget.income)   ? src.budget.income   : [];
-        t.budget.expenses = Array.isArray(src.budget.expenses) ? src.budget.expenses : [];
-      }
-      if(Array.isArray(src.shifts)) t.shifts = src.shifts;
-      if(src.rates && typeof src.rates==='object') Object.assign(t.rates, src.rates);
-      if(Array.isArray(src.debts)) t.debts = src.debts;
-      if(Array.isArray(src.goals)) t.goals = src.goals;
-    }
-    if(p.ui){
-      if(PEOPLE.concat('combined').includes(p.ui.main)) st.ui.main = p.ui.main;
-      if(p.ui.sub) Object.assign(st.ui.sub, p.ui.sub);
-    }
-    return st;
+    return normalizeState(JSON.parse(raw));
   }catch(e){ return defaultState(); }
 }
 let state = loadState();
@@ -1191,6 +1205,54 @@ function clearData(){
   save(); render();
 }
 
+/* ---------- backup: export / import ---------- */
+function exportData(){
+  save();
+  const backup={ app:'finance-app-v3', version:1, exported:new Date().toISOString(), data:state };
+  const json=JSON.stringify(backup,null,2);
+  const name='finance-backup-'+todayISO()+'.json';
+  const isIOS=/iP(hone|ad|od)/.test(navigator.userAgent)
+    || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+  if(isIOS && navigator.canShare && typeof File==='function'){
+    try{
+      const file=new File([json],name,{type:'application/json'});
+      if(navigator.canShare({files:[file]})){
+        navigator.share({files:[file]}).catch(function(){});
+        return;
+      }
+    }catch(e){}
+  }
+  const url=URL.createObjectURL(new Blob([json],{type:'application/json'}));
+  const a=document.createElement('a');
+  a.href=url; a.download=name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(url); },2000);
+}
+function importData(file){
+  const input=$('#importFile');
+  const fr=new FileReader();
+  fr.onerror=function(){ alert('Import failed. The file could not be read. Your current data was not changed.'); input.value=''; };
+  fr.onload=function(){
+    try{
+      const parsed=JSON.parse(fr.result);
+      const cand=(parsed && typeof parsed==='object' && parsed.data && typeof parsed.data==='object') ? parsed.data : parsed;
+      if(!cand || typeof cand!=='object' || !cand.people || typeof cand.people!=='object'
+         || (!cand.people.arges && !cand.people.hannah)) throw new Error('invalid');
+      if(!confirm('This will replace all current data with the backup. Continue?')){ input.value=''; return; }
+      state=normalizeState(cand);
+      undoStacks.arges=[]; undoStacks.hannah=[];
+      calState.arges={ym:null,sel:null}; calState.hannah={ym:null,sel:null};
+      save(); render();
+    }catch(e){
+      alert('Import failed. That file is not a valid backup. Your current data was not changed.');
+    }
+    input.value='';
+  };
+  fr.readAsText(file);
+}
+
 /* ---------- gate ---------- */
 function unlock(){
   const pw=$('#pw');
@@ -1226,6 +1288,8 @@ document.addEventListener('click', e=>{
   if(act==='lock'){ lock(); return; }
   if(act==='sample'){ loadSample(); return; }
   if(act==='clear'){ clearData(); return; }
+  if(act==='export'){ exportData(); return; }
+  if(act==='import'){ $('#importFile').click(); return; }
   if(act==='main-tab'){ state.ui.main=btn.dataset.tab; save(); render(); return; }
   if(act==='sub-tab'){ state.ui.sub[p]=btn.dataset.tab; save(); renderContent(); return; }
   if(act==='add-shift'){ addShift(p,scopeEl); return; }
@@ -1340,6 +1404,10 @@ $('#content').addEventListener('keydown', e=>{
 $('#unlockBtn').addEventListener('click', unlock);
 $('#pw').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); unlock(); } });
 $('#pw').addEventListener('input', ()=>$('#pw').classList.remove('bad'));
+$('#importFile').addEventListener('change', e=>{
+  const f=e.target.files && e.target.files[0];
+  if(f) importData(f);
+});
 
 window.addEventListener('pagehide', save);
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') save(); });
