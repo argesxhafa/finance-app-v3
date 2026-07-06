@@ -16,7 +16,8 @@
   DATA
     All data is stored permanently in the browser's localStorage under the
     key "finance-app-v3". Nothing is ever sent anywhere. Data persists until
-    you press "Clear data" inside the app (or wipe the browser's site data).
+    you wipe the browser's site data (there is deliberately no in-app way
+    to clear everything).
     NOTE: localStorage is per-browser, per-device - use the same browser you
     entered the data in.
 
@@ -328,8 +329,6 @@ details.sched .scroll{max-height:290px;overflow-y:auto;border:1px solid var(--li
   <footer class="wrap" id="foot">
     <button class="btn ghost sm" data-act="export">Export data</button>
     <button class="btn ghost sm" data-act="import">Import data</button>
-    <button class="btn ghost sm" data-act="sample">Load sample data</button>
-    <button class="btn ghost sm danger" data-act="clear">Clear data</button>
     <input type="file" id="importFile" accept=".json,application/json" hidden>
   </footer>
 </div>
@@ -1151,60 +1150,6 @@ function addShift(p,scope){
   state.people[p].shifts.push({ id:uid(), date, in:tin, out:tout, tips:round2(Math.max(0,tips||0)), ovr:{} });
   save(); renderContent();
 }
-function hasAnyData(){
-  return PEOPLE.some(p=>{
-    const x=state.people[p];
-    return x.shifts.length||x.budget.income.length||x.budget.expenses.length||x.debts.length||x.goals.length;
-  });
-}
-function bi(name,amount){ return {id:uid(),name,amount}; }
-function sampleState(){
-  const s=defaultState();
-  const A=s.people.arges, H=s.people.hannah;
-  A.budget.income=[bi('Restaurant wages',2600),bi('Freelance design',350)];
-  A.budget.expenses=[bi('Rent',975),bi('Groceries',420),bi('Car insurance',210),bi('Phone',60),bi('Transit',128),bi('Subscriptions',35),bi('Dining out',180)];
-  H.budget.income=[bi('Restaurant wages',2450),bi('Tutoring',240)];
-  H.budget.expenses=[bi('Rent',975),bi('Groceries',380),bi('Phone',55),bi('Transit',128),bi('Gym',45),bi('Subscriptions',28),bi('Personal',150)];
-  A.shifts=[
-    {id:uid(),date:'2026-06-26',in:'17:00',out:'01:29',tips:142,ovr:{}},
-    {id:uid(),date:'2026-06-28',in:'11:00',out:'19:30',tips:95,ovr:{}},
-    {id:uid(),date:'2026-07-01',in:'16:00',out:'23:00',tips:88,ovr:{}},
-    {id:uid(),date:'2026-07-03',in:'17:30',out:'02:00',tips:156,ovr:{}},
-    {id:uid(),date:'2026-07-04',in:'10:00',out:'18:00',tips:74,ovr:{}}
-  ];
-  H.shifts=[
-    {id:uid(),date:'2026-06-27',in:'09:00',out:'17:30',tips:68,ovr:{}},
-    {id:uid(),date:'2026-06-29',in:'17:00',out:'00:45',tips:121,ovr:{}},
-    {id:uid(),date:'2026-07-02',in:'12:00',out:'20:00',tips:84,ovr:{}},
-    {id:uid(),date:'2026-07-04',in:'17:00',out:'01:00',tips:133,ovr:{}}
-  ];
-  A.debts=[{id:uid(),name:'Car loan',balance:8500,rate:6.9,term:48,extra:100}];
-  H.debts=[{id:uid(),name:'Student loan',balance:6200,rate:5.2,term:60,extra:50},
-           {id:uid(),name:'Credit card',balance:1850,rate:19.99,term:24,extra:0}];
-  A.goals=[{id:uid(),name:'House down payment',target:20000,current:6500,monthly:650},
-           {id:uid(),name:'Emergency fund',target:5000,current:2100,monthly:200}];
-  H.goals=[{id:uid(),name:'House down payment',target:20000,current:5800,monthly:600},
-           {id:uid(),name:'Travel',target:2500,current:900,monthly:150}];
-  return s;
-}
-function loadSample(){
-  if(hasAnyData() && !confirm('Replace your current data with sample data?')) return;
-  const ui=state.ui;
-  state=sampleState();
-  state.ui=ui;
-  undoStacks.arges=[]; undoStacks.hannah=[];
-  save(); render();
-}
-function clearData(){
-  if(hasAnyData() && !confirm('Delete all saved data? This cannot be undone.')) return;
-  try{ localStorage.removeItem(LS_KEY); }catch(e){}
-  const ui=state.ui;
-  state=defaultState();
-  state.ui=ui;
-  undoStacks.arges=[]; undoStacks.hannah=[];
-  save(); render();
-}
-
 /* ---------- backup: export / import ---------- */
 function exportData(){
   save();
@@ -1286,8 +1231,6 @@ document.addEventListener('click', e=>{
   const p=btn.dataset.person || (scopeEl?scopeEl.dataset.person:null);
 
   if(act==='lock'){ lock(); return; }
-  if(act==='sample'){ loadSample(); return; }
-  if(act==='clear'){ clearData(); return; }
   if(act==='export'){ exportData(); return; }
   if(act==='import'){ $('#importFile').click(); return; }
   if(act==='main-tab'){ state.ui.main=btn.dataset.tab; save(); render(); return; }
