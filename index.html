@@ -193,7 +193,8 @@ body.locked #app{display:none}
 .addline{margin-top:4px}
 
 /* ---------- shifts ---------- */
-.shift{padding:13px 15px}
+.shift{padding:12px 0 2px;border-top:1px solid var(--line-soft);margin-top:10px}
+.shift:first-of-type{border-top:none;margin-top:0;padding-top:2px}
 .shift-top{display:flex;align-items:center;gap:10px;margin-bottom:11px}
 .shift-top input[type=date]{
   padding:7px 9px;border:1px solid var(--line);border-radius:9px;background:#fbfdfb;
@@ -204,6 +205,36 @@ body.locked #app{display:none}
 .shift-top .link{margin-left:auto}
 .shift-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 @media(min-width:620px){.shift-grid{grid-template-columns:repeat(7,minmax(0,1fr))}}
+
+/* ---------- shift calendar ---------- */
+.cal-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.cal-nav{
+  width:38px;height:38px;flex:none;border:1px solid var(--line);border-radius:10px;
+  background:#fbfdfb;font-size:22px;line-height:1;font-weight:700;color:var(--green-dk);
+  display:flex;align-items:center;justify-content:center;padding:0 0 3px;
+}
+.cal-title{flex:1;text-align:center;font-weight:750;font-size:15px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cal-dow{text-align:center;font-size:10px;font-weight:800;letter-spacing:.04em;color:var(--muted);padding:3px 0 5px}
+.cal-day{
+  min-height:44px;border-radius:10px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:1px;font-size:14px;font-weight:650;color:var(--text);
+  background:#eef3ee;border:1.5px solid transparent;padding:3px 0;min-width:0;
+}
+.cal-day.blank{background:transparent}
+.cal-day.has{background:var(--green);color:#fff;font-weight:750}
+.cal-day.today{border-color:var(--green-dk)}
+.cal-day.sel{box-shadow:0 0 0 2.5px var(--green-dk)}
+.cal-amt{font-size:9px;font-weight:700;color:#d7ecdf;max-width:100%;overflow:hidden}
+
+/* ---------- tracked income row ---------- */
+.brow.auto-row{
+  grid-template-columns:minmax(0,1fr) auto;background:var(--green-tint);
+  border:1px solid #cbe2d3;border-radius:10px;padding:8px 11px;
+}
+.auto-name{font-size:14.5px;font-weight:650;display:flex;flex-direction:column;gap:1px;min-width:0}
+.auto-name span{font-size:11px;color:var(--muted);font-weight:600}
+.auto-amt{font-weight:750;font-variant-numeric:tabular-nums;font-size:15.5px;color:var(--green-dk);white-space:nowrap}
 
 /* ---------- tables ---------- */
 .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -354,6 +385,7 @@ function loadState(){
 }
 let state = loadState();
 const undoStacks = { arges:[], hannah:[] };
+const calState = { arges:{ym:null,sel:null}, hannah:{ym:null,sel:null} };
 
 function save(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
 
@@ -431,6 +463,20 @@ function shiftTotals(shifts,r){
   hours=round2(hours);
   return { n:shifts.length, hours, wages:round2(wages), tips:round2(tips), total:round2(total),
            avg: hours>0 ? round2(total/hours) : 0 };
+}
+function trackedIncome(p){        // current month's shift earnings, fed into Budget income
+  const ym=todayISO().slice(0,7);
+  const per=state.people[p];
+  let t=0;
+  for(const s of per.shifts){ if((s.date||'').slice(0,7)===ym) t+=calcTotal(s,per.rates); }
+  return round2(t);
+}
+function shiftYM(ym,delta){
+  const parts=ym.split('-').map(Number);
+  let y=parts[0], m=parts[1]+delta;
+  if(m<1){ m=12; y--; }
+  if(m>12){ m=1; y++; }
+  return y+'-'+String(m).padStart(2,'0');
 }
 
 /* ---------- undo (shift tracker) ---------- */
@@ -584,7 +630,7 @@ function personHTML(p){
 /* ---------- budget ---------- */
 function budgetTiles(p){
   const b=state.people[p].budget;
-  const inc=sumAmt(b.income), exp=sumAmt(b.expenses), sur=round2(inc-exp);
+  const inc=round2(sumAmt(b.income)+trackedIncome(p)), exp=sumAmt(b.expenses), sur=round2(inc-exp);
   return tile('Income',fmT(inc),'monthly')
        + tile('Expenses',fmT(exp),'monthly')
        + tile('Surplus',fmT(sur),'monthly',sur>=0?'pos':'neg');
@@ -605,6 +651,10 @@ function budgetHTML(p){
   const b=state.people[p].budget;
   return '<div class="tiles" data-role="budget-summary">'+budgetTiles(p)+'</div>'
     +'<div class="card"><h2 class="card-h">Income</h2>'
+    +'<div class="brow auto-row" data-role="tracked-income">'
+    +'<div class="auto-name">Shift income (tracked)<span>'+monthLabel(todayISO().slice(0,7))+'</span></div>'
+    +'<div class="auto-amt">'+fm(trackedIncome(p))+'</div>'
+    +'</div>'
     +'<div>'+b.income.map(r=>budgetRow(p,'income',r)).join('')+'</div>'
     +'<button class="btn ghost sm addline" data-act="add-budget" data-kind="income">Add income source</button>'
     +'</div>'
@@ -633,7 +683,7 @@ function numCell(field,label,val,ovr){
 }
 function shiftCard(p,s,r){
   const ov=s.ovr||{};
-  return '<div class="card shift" data-id="'+s.id+'">'
+  return '<div class="shift" data-id="'+s.id+'">'
     +'<div class="shift-top">'
     +'<input type="date" data-edit="shift" data-field="date" value="'+esc(s.date)+'">'
     +'<span class="dow" data-role="dow">'+dow(s.date)+'</span>'
@@ -668,30 +718,81 @@ function monthTableInner(per){
   }
   return html+'</tbody></table></div>';
 }
+function calGridHTML(p){
+  const cs=calState[p], per=state.people[p];
+  const parts=cs.ym.split('-').map(Number);
+  const first=new Date(parts[0],parts[1]-1,1).getDay();
+  const dim=new Date(parts[0],parts[1],0).getDate();
+  const byDay={};
+  for(const s of per.shifts){
+    if((s.date||'').slice(0,7)===cs.ym){
+      const d=+s.date.slice(8,10);
+      (byDay[d]=byDay[d]||[]).push(s);
+    }
+  }
+  const today=todayISO();
+  let out='<div class="cal-grid">';
+  for(const d of ['S','M','T','W','T','F','S']) out+='<div class="cal-dow">'+d+'</div>';
+  for(let i=0;i<first;i++) out+='<div class="cal-day blank"></div>';
+  for(let d=1;d<=dim;d++){
+    const iso=cs.ym+'-'+String(d).padStart(2,'0');
+    const has=byDay[d];
+    const cls='cal-day'+(has?' has':'')+(iso===today?' today':'')+(iso===cs.sel?' sel':'');
+    let amt='';
+    if(has){
+      let tot=0;
+      for(const s of has) tot+=calcTotal(s,per.rates);
+      amt='<span class="cal-amt">'+fm0(tot)+'</span>';
+    }
+    out+='<button type="button" class="'+cls+'" data-act="cal-day" data-date="'+iso+'"><span>'+d+'</span>'+amt+'</button>';
+  }
+  return out+'</div>';
+}
+function dayEditorHTML(p){
+  const cs=calState[p];
+  if(!cs.sel) return '';
+  const per=state.people[p];
+  const dayShifts=per.shifts.filter(s=>s.date===cs.sel);
+  let html='<div class="card"><h2 class="card-h">'+dow(cs.sel)+', '+fmtDateLong(cs.sel)+'</h2>';
+  if(dayShifts.length){
+    html+=dayShifts.map(s=>shiftCard(p,s,per.rates)).join('');
+  }else{
+    html+='<div class="grid3">'
+      +'<label class="f"><span class="cl">Clock in</span><input type="time" data-add="in"></label>'
+      +'<label class="f"><span class="cl">Clock out</span><input type="time" data-add="out"></label>'
+      +'<label class="f"><span class="cl">Tips $</span><input type="text" inputmode="decimal" data-add="tips" placeholder="0.00"></label>'
+      +'</div>'
+      +'<div class="btnrow"><button class="btn primary" data-act="add-shift">Add shift</button></div>';
+  }
+  return html+'</div>';
+}
 function shiftsHTML(p){
   const per=state.people[p], r=per.rates;
+  const cs=calState[p];
+  if(!cs.ym){ cs.ym=todayISO().slice(0,7); cs.sel=todayISO(); }
   const t=shiftTotals(per.shifts,r);
-  const sorted=per.shifts.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   return '<div class="card"><h2 class="card-h">Pay rates</h2>'
     +'<div class="grid3">'
     +'<label class="f"><span class="cl">Base $/hr</span><input type="text" inputmode="decimal" data-edit="rates" data-field="base" value="'+fixed2(r.base)+'"></label>'
     +'<label class="f"><span class="cl">Overtime x</span><input type="text" inputmode="decimal" data-edit="rates" data-field="ot" value="'+String(r.ot)+'"></label>'
     +'<label class="f"><span class="cl">Vacation %</span><input type="text" inputmode="decimal" data-edit="rates" data-field="vac" value="'+String(r.vac)+'"></label>'
     +'</div></div>'
-    +'<div class="card"><h2 class="card-h">Add shift</h2>'
-    +'<div class="grid4">'
-    +'<label class="f"><span class="cl">Date</span><input type="date" data-add="date" value="'+todayISO()+'"></label>'
-    +'<label class="f"><span class="cl">Clock in</span><input type="time" data-add="in"></label>'
-    +'<label class="f"><span class="cl">Clock out</span><input type="time" data-add="out"></label>'
-    +'<label class="f"><span class="cl">Tips $</span><input type="text" inputmode="decimal" data-add="tips" placeholder="0.00"></label>'
-    +'</div>'
-    +'<div class="btnrow">'
-    +'<button class="btn primary" data-act="add-shift">Add shift</button>'
-    +'<button class="btn ghost" data-act="undo"'+(undoStacks[p].length?'':' disabled')+'>Undo</button>'
-    +'</div></div>'
     +'<div class="tiles" data-role="shift-summary">'+shiftSummaryTiles(t)+'</div>'
-    +'<div>'+sorted.map(s=>shiftCard(p,s,r)).join('')+'</div>'
+    +'<div class="card">'
+    +'<div class="cal-head">'
+    +'<button type="button" class="cal-nav" data-act="cal-prev">&lsaquo;</button>'
+    +'<span class="cal-title">'+monthLabel(cs.ym)+'</span>'
+    +'<button type="button" class="cal-nav" data-act="cal-next">&rsaquo;</button>'
+    +'<button class="btn ghost sm" data-act="undo"'+(undoStacks[p].length?'':' disabled')+'>Undo</button>'
+    +'</div>'
+    +'<div data-role="calendar">'+calGridHTML(p)+'</div>'
+    +'</div>'
+    +'<div data-role="day-editor">'+dayEditorHTML(p)+'</div>'
     +'<div class="card" data-role="shift-months">'+monthTableInner(per)+'</div>';
+}
+function refreshCalendar(p,scope){
+  const el=scope.querySelector('[data-role="calendar"]');
+  if(el) el.innerHTML=calGridHTML(p);
 }
 function refreshShiftCard(p,card){
   const per=state.people[p];
@@ -815,8 +916,8 @@ function savingsHTML(p){
 /* ---------- combined ---------- */
 function combinedHTML(){
   const A=state.people.arges, H=state.people.hannah;
-  const ai=sumAmt(A.budget.income), ax=sumAmt(A.budget.expenses);
-  const hi=sumAmt(H.budget.income), hx=sumAmt(H.budget.expenses);
+  const ai=round2(sumAmt(A.budget.income)+trackedIncome('arges')), ax=sumAmt(A.budget.expenses);
+  const hi=round2(sumAmt(H.budget.income)+trackedIncome('hannah')), hx=sumAmt(H.budget.expenses);
   const ti=round2(ai+hi), tx=round2(ax+hx), ts=round2(ti-tx);
 
   const at=shiftTotals(A.shifts,A.rates), ht=shiftTotals(H.shifts,H.rates);
@@ -950,6 +1051,11 @@ function onShiftCommit(input,p,scope){
   if(changed) save();
   refreshShiftCard(p,card);
   refreshShiftAggregates(p,scope);
+  refreshCalendar(p,scope);
+  if(f==='date' && calState[p].sel && s.date!==calState[p].sel){
+    const ed=scope.querySelector('[data-role="day-editor"]');
+    if(ed) ed.innerHTML=dayEditorHTML(p);
+  }
 }
 function onRatesCommit(input,p,scope){
   const f=input.dataset.field, r=state.people[p].rates;
@@ -958,6 +1064,7 @@ function onRatesCommit(input,p,scope){
   input.value = f==='base' ? fixed2(r[f]) : String(r[f]);
   scope.querySelectorAll('.shift').forEach(card=>refreshShiftCard(p,card));
   refreshShiftAggregates(p,scope);
+  refreshCalendar(p,scope);
 }
 function onBudgetCommit(input,p,scope){
   const row=input.closest('.brow'); if(!row) return;
@@ -1014,10 +1121,12 @@ function onGoalCommit(input,p,scope){
    ACTIONS
    ============================================================ */
 function addShift(p,scope){
+  const date=calState[p].sel;
+  if(!date) return;
   const g=k=>scope.querySelector('[data-add="'+k+'"]');
-  const date=g('date').value, tin=g('in').value, tout=g('out').value;
+  const tin=g('in').value, tout=g('out').value;
   let ok=true;
-  [['date',date],['in',tin],['out',tout]].forEach(pair=>{
+  [['in',tin],['out',tout]].forEach(pair=>{
     const el=g(pair[0]);
     el.classList.toggle('err', !pair[1]);
     if(!pair[1]) ok=false;
@@ -1121,6 +1230,18 @@ document.addEventListener('click', e=>{
   if(act==='sub-tab'){ state.ui.sub[p]=btn.dataset.tab; save(); renderContent(); return; }
   if(act==='add-shift'){ addShift(p,scopeEl); return; }
   if(act==='undo'){ doUndo(p); return; }
+  if(act==='cal-prev'||act==='cal-next'){
+    const cs=calState[p];
+    cs.ym=shiftYM(cs.ym, act==='cal-prev'?-1:1);
+    cs.sel=null;
+    renderContent();
+    return;
+  }
+  if(act==='cal-day'){
+    calState[p].sel=btn.dataset.date;
+    renderContent();
+    return;
+  }
   if(act==='del-shift'){
     const card=btn.closest('.shift');
     const arr=state.people[p].shifts;
@@ -1135,7 +1256,7 @@ document.addEventListener('click', e=>{
     const f=btn.dataset.field;
     if(s && s.ovr && s.ovr[f]!=null){
       pushUndo(p); delete s.ovr[f]; save();
-      refreshShiftCard(p,card); refreshShiftAggregates(p,scopeEl);
+      refreshShiftCard(p,card); refreshShiftAggregates(p,scopeEl); refreshCalendar(p,scopeEl);
     }
     return;
   }
