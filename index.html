@@ -64,10 +64,14 @@ html{-webkit-text-size-adjust:100%}
 body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   background:var(--bg);color:var(--text);min-height:100vh;
-  padding-top:env(safe-area-inset-top);
 }
 button{font:inherit;cursor:pointer;background:none;border:none;color:inherit;-webkit-tap-highlight-color:transparent}
 input{font:inherit;color:inherit}
+input[type=date],input[type=time]{
+  -webkit-appearance:none;appearance:none;
+  min-width:0;max-width:100%;min-height:39px;
+}
+input::-webkit-date-and-time-value{text-align:left}
 .wrap{max-width:760px;margin:0 auto;padding:0 14px}
 
 /* ---------- gate ---------- */
@@ -114,6 +118,7 @@ body.locked #app{display:none}
 /* ---------- header / nav ---------- */
 #top{
   position:sticky;top:0;z-index:20;
+  padding-top:env(safe-area-inset-top);
   background:rgba(243,246,243,.92);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
   border-bottom:1px solid var(--line-soft);
 }
@@ -141,8 +146,8 @@ body.locked #app{display:none}
 }
 .card-h{font-size:15px;font-weight:750;margin-bottom:12px;letter-spacing:-.01em}
 .card-h .count{color:var(--muted);font-weight:600;font-size:13px;margin-left:6px}
-.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
-.tiles.t2{grid-template-columns:repeat(2,1fr)}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.tiles.t2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0}
 .tile.hero{background:var(--green-tint);border-color:#cbe2d3}
 .tile .tl{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700;white-space:nowrap}
@@ -160,7 +165,7 @@ body.locked #app{display:none}
 .cl{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
 .f input{
   width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;
-  background:#fbfdfb;font-size:16px;outline:none;min-width:0;font-variant-numeric:tabular-nums;
+  background:#fbfdfb;font-size:16px;outline:none;min-width:0;min-height:39px;font-variant-numeric:tabular-nums;
 }
 .f input:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(21,128,61,.13)}
 .f input.err{border-color:var(--danger)}
@@ -170,15 +175,15 @@ body.locked #app{display:none}
   text-decoration:underline;text-transform:none;letter-spacing:.02em;padding:0 2px;
 }
 .f.is-ovr .autobtn{display:inline}
-.grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.grid4{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-@media(min-width:620px){.grid4{grid-template-columns:repeat(4,1fr)}}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.grid4{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media(min-width:620px){.grid4{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .btnrow{display:flex;gap:10px;margin-top:13px}
 .btnrow .btn{flex:1}
 
 /* ---------- budget rows ---------- */
-.brow{display:grid;grid-template-columns:1fr 108px auto;gap:8px;align-items:center;margin-bottom:8px}
+.brow{display:grid;grid-template-columns:minmax(0,1fr) 104px auto;gap:8px;align-items:center;margin-bottom:8px}
 .brow input{
   width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;
   background:#fbfdfb;font-size:16px;outline:none;min-width:0;
@@ -197,8 +202,8 @@ body.locked #app{display:none}
 .shift-top input[type=date]:focus{border-color:var(--green)}
 .dow{font-weight:750;color:var(--green-dk);font-size:14px}
 .shift-top .link{margin-left:auto}
-.shift-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px 10px}
-@media(min-width:620px){.shift-grid{grid-template-columns:repeat(7,1fr)}}
+.shift-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media(min-width:620px){.shift-grid{grid-template-columns:repeat(7,minmax(0,1fr))}}
 
 /* ---------- tables ---------- */
 .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -359,6 +364,7 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&am
 const cadFmt = new Intl.NumberFormat('en-CA',{style:'currency',currency:'CAD'});
 function fm(n){ return cadFmt.format(isFinite(n)?n:0); }
 function fm0(n){ return '$' + Math.round(isFinite(n)?n:0).toLocaleString('en-CA'); }
+function fmT(n){ return Math.abs(isFinite(n)?n:0)>=1000 ? fm0(n) : fm(n); }
 function round2(n){ return Math.round(n*100)/100; }
 function fixed2(n){ return (Math.round((isFinite(n)?n:0)*100)/100).toFixed(2); }
 function parseNum(raw){
@@ -579,9 +585,9 @@ function personHTML(p){
 function budgetTiles(p){
   const b=state.people[p].budget;
   const inc=sumAmt(b.income), exp=sumAmt(b.expenses), sur=round2(inc-exp);
-  return tile('Income',fm(inc),'monthly')
-       + tile('Expenses',fm(exp),'monthly')
-       + tile('Surplus',fm(sur),'monthly',sur>=0?'pos':'neg');
+  return tile('Income',fmT(inc),'monthly')
+       + tile('Expenses',fmT(exp),'monthly')
+       + tile('Surplus',fmT(sur),'monthly',sur>=0?'pos':'neg');
 }
 function budgetRow(p,kind,r){
   return '<div class="brow" data-id="'+r.id+'">'
@@ -614,9 +620,9 @@ function shiftSummaryTiles(t){
   return tile('Shifts',t.n,'all logged')
        + tile('Hours',t.hours.toFixed(2),'')
        + tile('Avg $/hr',fm(t.avg),'')
-       + tile('Wages',fm(t.wages),'')
-       + tile('Tips',fm(t.tips),'')
-       + tile('Total earned',fm(t.total),'','pos hero');
+       + tile('Wages',fmT(t.wages),'')
+       + tile('Tips',fmT(t.tips),'')
+       + tile('Total earned',fmT(t.total),'','pos hero');
 }
 function numCell(field,label,val,ovr){
   const is = ovr && ovr[field]!=null;
@@ -727,10 +733,10 @@ function debtOutHTML(d){
     ? [{pts:base.pts,color:C.gray,dash:true},{pts:withX.pts,color:C.green}]
     : [{pts:base.pts,color:C.green}];
   let html='<div class="tiles t2 inner-tiles">'
-    +tile('Monthly payment',fm(base.payment+extra), extra>0?('incl. '+fm0(extra)+' extra'):'')
+    +tile('Monthly payment',fmT(base.payment+extra), extra>0?('incl. '+fm0(extra)+' extra'):'')
     +tile('Payoff',yrMo(withX.months),inMonths(withX.months))
-    +tile('Total interest',fm(withX.totalInterest),'')
-    +tile('Interest saved',fm(saved),'',saved>0?'pos':'')
+    +tile('Total interest',fmT(withX.totalInterest),'')
+    +tile('Interest saved',fmT(saved),'',saved>0?'pos':'')
     +'</div>'
     +'<div class="chart">'+svgLine(series)+'</div>';
   if(extra>0){
@@ -782,7 +788,7 @@ function goalOutHTML(g){
   return '<div class="pb"><i style="width:'+pct.toFixed(1)+'%"></i></div>'
     +'<div class="gline"><span class="gsub">'+fm(cur)+' of '+fm(target)+'</span><span class="gsub">'+pct.toFixed(0)+'%</span></div>'
     +'<div class="tiles t2 inner-tiles" style="margin-top:10px">'
-    +tile('Remaining',fm(remaining),'')
+    +tile('Remaining',fmT(remaining),'')
     +tile('Projected',projV,projS,cur>=target&&target>0?'pos':'')
     +'</div>';
 }
@@ -851,9 +857,9 @@ function combinedHTML(){
 
   let html='<div class="card"><h2 class="card-h">Household budget</h2>'
     +'<div class="tiles inner-tiles" style="margin-bottom:12px">'
-    +tile('Income',fm(ti),'monthly')
-    +tile('Expenses',fm(tx),'monthly')
-    +tile('Surplus',fm(ts),'monthly',ts>=0?'pos':'neg')
+    +tile('Income',fmT(ti),'monthly')
+    +tile('Expenses',fmT(tx),'monthly')
+    +tile('Surplus',fmT(ts),'monthly',ts>=0?'pos':'neg')
     +'</div>'
     +'<div class="scroll"><table class="tbl"><thead><tr><th></th><th>Income</th><th>Expenses</th><th>Surplus</th></tr></thead><tbody>'
     +'<tr><td>Arges</td><td>'+fm(ai)+'</td><td>'+fm(ax)+'</td><td class="strong">'+fm(round2(ai-ax))+'</td></tr>'
@@ -862,9 +868,9 @@ function combinedHTML(){
 
   html+='<div class="card"><h2 class="card-h">Combined shift earnings</h2>'
     +'<div class="tiles inner-tiles" style="margin-bottom:12px">'
-    +tile('Wages',fm(cWages),'')
-    +tile('Tips',fm(cTips),'')
-    +tile('Total earned',fm(cTotal),'','pos hero')
+    +tile('Wages',fmT(cWages),'')
+    +tile('Tips',fmT(cTips),'')
+    +tile('Total earned',fmT(cTotal),'','pos hero')
     +tile('Hours',cHours.toFixed(2),'')
     +tile('Avg $/hr',fm(cAvg),'')
     +tile('Shifts',at.n+ht.n,'')
