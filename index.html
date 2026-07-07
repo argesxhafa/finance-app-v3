@@ -29,10 +29,12 @@
     a backup file, replacing current data after a confirmation. Importing
     a backup onto a fresh install recreates everything exactly.
 
-  CHANGE THE PASSWORD / RATE DEFAULTS
+  CHANGE THE PIN / RATE DEFAULTS
     Scroll down to the block marked  "===== SETTINGS - EDIT HERE ====="
     at the very top of the <script> section:
-      APP_PASSWORD            the login password (default "money")
+      APP_PIN                 the numeric login PIN (currently "435970").
+                              Digits only, ANY length (4, 6, 8 digits...),
+                              and keep the quotes around it.
       DEFAULT_BASE_RATE       hourly wage default ($15.00)
       DEFAULT_OT_MULTIPLIER   overtime multiplier default (1.5)
       DEFAULT_VAC_PERCENT     vacation pay percent default (6)
@@ -115,9 +117,9 @@ body.locked #app{display:none}
 .mark.sm{width:30px;height:30px;border-radius:9px;box-shadow:0 3px 12px var(--green-glow)}
 .gate-title{font-size:21px;font-weight:800;letter-spacing:-.01em}
 #pw{
-  width:100%;text-align:center;font-size:18px;letter-spacing:.12em;
+  width:100%;text-align:center;font-size:20px;letter-spacing:.32em;
   padding:11px 12px;border:1px solid var(--line);border-radius:12px;
-  background:var(--field);color:var(--text);outline:none;
+  background:var(--field);color:var(--text);outline:none;caret-color:var(--green);
 }
 #pw:focus{border-color:var(--green);box-shadow:0 0 0 3px var(--green-glow)}
 #pw.bad{border-color:var(--danger)}
@@ -331,7 +333,7 @@ details.sched .scroll{max-height:290px;overflow-y:auto;border:1px solid var(--li
   <div class="gate-card" id="gateCard">
     <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18.6 8.4V6.5a2 2 0 0 0-2-2H6A2.5 2.5 0 0 0 3.5 7v10A2.5 2.5 0 0 0 6 19.5h12.1a2.4 2.4 0 0 0 2.4-2.4v-6.3a2.4 2.4 0 0 0-2.4-2.4H6"/><circle cx="15.9" cy="13.9" r="1.35" fill="currentColor" stroke="none"/></svg></div>
     <div class="gate-title">My Finances</div>
-    <input id="pw" type="password" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Password">
+    <input id="pw" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="PIN">
     <button class="btn primary wide" id="unlockBtn">Unlock</button>
   </div>
 </div>
@@ -364,7 +366,7 @@ details.sched .scroll{max-height:290px;overflow-y:auto;border:1px solid var(--li
 /* ============================================================
    ===== SETTINGS - EDIT HERE =================================
    ============================================================ */
-const APP_PASSWORD = 'money';            // <-- change the password here
+const APP_PIN = '435970';                // <-- change the PIN here: digits only, any length, keep the quotes
 
 const DEFAULT_BASE_RATE      = 15.00;    // $/hour
 const DEFAULT_OT_MULTIPLIER  = 1.5;      // overtime pay multiplier (hours over 8)
@@ -1226,7 +1228,7 @@ function importData(file){
 /* ---------- gate ---------- */
 function unlock(){
   const pw=$('#pw');
-  if(pw.value===APP_PASSWORD){
+  if(pw.value===APP_PIN){
     pw.value=''; pw.classList.remove('bad'); pw.blur();
     document.body.classList.remove('locked');
     render();
@@ -1371,7 +1373,12 @@ $('#content').addEventListener('keydown', e=>{
 
 $('#unlockBtn').addEventListener('click', unlock);
 $('#pw').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); unlock(); } });
-$('#pw').addEventListener('input', ()=>$('#pw').classList.remove('bad'));
+$('#pw').addEventListener('input', ()=>{
+  const pw=$('#pw');
+  pw.classList.remove('bad');
+  const digits=pw.value.replace(/\D/g,'');
+  if(digits!==pw.value) pw.value=digits;
+});
 $('#importFile').addEventListener('change', e=>{
   const f=e.target.files && e.target.files[0];
   if(f) importData(f);
